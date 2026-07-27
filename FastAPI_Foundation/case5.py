@@ -1,6 +1,6 @@
 from fastapi import FastAPI  # 从 fastapi 库导入 FastAPI 类，用于创建应用实例
 
-#从 pydantic 库导入 BaseModel、Field 基类，
+# 从pydantic 库导入 BaseModel、Field 基类，
 # BaseModel：用于定义数据模型并做数据校验；
 # Field：用来给 Pydantic 模型的字段加「额外说明和校验规则」
 from pydantic import BaseModel,Field 
