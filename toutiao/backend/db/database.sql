@@ -1,163 +1,256 @@
--- 新闻资讯应用数据库设计
--- 创建数据库
-CREATE DATABASE IF NOT EXISTS news_app DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 新闻资讯应用数据库设计（PostgreSQL 版本）
+-- 使用方式：先创建数据库 CREATE DATABASE news_app;
+-- 再导入本脚本：psql -U 用户名 -d news_app -f db/database.sql
+-- PostgreSQL 默认 UTF8 编码，无需指定字符集
 
-USE news_app;
+-- ============================================
+-- 触发器函数：自动更新 updated_at
+-- （替代 MySQL 的 ON UPDATE CURRENT_TIMESTAMP）
+-- ============================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
+-- ============================================
 -- 用户表
-CREATE TABLE IF NOT EXISTS `user` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID',
-  `username` VARCHAR(50) NOT NULL COMMENT '用户名',
-  `password` VARCHAR(255) NOT NULL COMMENT '密码（加密存储）',
-  `nickname` VARCHAR(50) NULL DEFAULT NULL COMMENT '昵称',
-  `avatar` VARCHAR(255) NULL DEFAULT NULL COMMENT '头像URL',
-  `gender` ENUM('male', 'female', 'unknown') NULL DEFAULT 'unknown' COMMENT '性别',
-  `bio` VARCHAR(500) NULL DEFAULT NULL COMMENT '个人简介',
-  `phone` VARCHAR(20) NULL DEFAULT NULL COMMENT '手机号',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `username_UNIQUE` (`username` ASC),
-  UNIQUE INDEX `phone_UNIQUE` (`phone` ASC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户信息表';
+-- 注意：user 是 PostgreSQL 保留字，表名必须加双引号
+-- ============================================
+CREATE TABLE IF NOT EXISTS "user" (
+  id SERIAL NOT NULL,
+  username VARCHAR(50) NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  nickname VARCHAR(50) DEFAULT NULL,
+  avatar VARCHAR(255) DEFAULT NULL,
+  gender VARCHAR(10) DEFAULT 'unknown' CHECK (gender IN ('male', 'female', 'unknown')),
+  bio VARCHAR(500) DEFAULT NULL,
+  phone VARCHAR(20) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT username_UNIQUE UNIQUE (username),
+  CONSTRAINT phone_UNIQUE UNIQUE (phone)
+);
+COMMENT ON TABLE "user" IS '用户信息表';
+COMMENT ON COLUMN "user".id IS '用户ID';
+COMMENT ON COLUMN "user".username IS '用户名';
+COMMENT ON COLUMN "user".password IS '密码（加密存储）';
+COMMENT ON COLUMN "user".nickname IS '昵称';
+COMMENT ON COLUMN "user".avatar IS '头像URL';
+COMMENT ON COLUMN "user".gender IS '性别';
+COMMENT ON COLUMN "user".bio IS '个人简介';
+COMMENT ON COLUMN "user".phone IS '手机号';
+COMMENT ON COLUMN "user".created_at IS '创建时间';
+COMMENT ON COLUMN "user".updated_at IS '更新时间';
 
+CREATE OR REPLACE TRIGGER trg_user_updated_at BEFORE UPDATE ON "user"
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
 -- 用户令牌表
-CREATE TABLE IF NOT EXISTS `user_token` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '令牌ID',
-  `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
-  `token` VARCHAR(255) NOT NULL COMMENT '令牌值',
-  `expires_at` TIMESTAMP NOT NULL COMMENT '过期时间',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `token_UNIQUE` (`token` ASC),
-  INDEX `fk_user_token_user_idx` (`user_id` ASC),
-  CONSTRAINT `fk_user_token_user`
-    FOREIGN KEY (`user_id`)
-    REFERENCES `user` (`id`)
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_token (
+  id SERIAL NOT NULL,
+  user_id INTEGER NOT NULL,
+  token VARCHAR(255) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT token_UNIQUE UNIQUE (token),
+  CONSTRAINT fk_user_token_user
+    FOREIGN KEY (user_id)
+    REFERENCES "user" (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户令牌表';
+);
+CREATE INDEX IF NOT EXISTS fk_user_token_user_idx ON user_token (user_id);
+COMMENT ON TABLE user_token IS '用户令牌表';
+COMMENT ON COLUMN user_token.id IS '令牌ID';
+COMMENT ON COLUMN user_token.user_id IS '用户ID';
+COMMENT ON COLUMN user_token.token IS '令牌值';
+COMMENT ON COLUMN user_token.expires_at IS '过期时间';
+COMMENT ON COLUMN user_token.created_at IS '创建时间';
 
+-- ============================================
 -- 新闻分类表
-CREATE TABLE IF NOT EXISTS `news_category` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '分类ID',
-  `name` VARCHAR(50) NOT NULL COMMENT '分类名称',
-  `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序顺序',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `name_UNIQUE` (`name` ASC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='新闻分类表';
+-- ============================================
+CREATE TABLE IF NOT EXISTS news_category (
+  id SERIAL NOT NULL,
+  name VARCHAR(50) NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT name_UNIQUE UNIQUE (name)
+);
+COMMENT ON TABLE news_category IS '新闻分类表';
+COMMENT ON COLUMN news_category.id IS '分类ID';
+COMMENT ON COLUMN news_category.name IS '分类名称';
+COMMENT ON COLUMN news_category.sort_order IS '排序顺序';
+COMMENT ON COLUMN news_category.created_at IS '创建时间';
+COMMENT ON COLUMN news_category.updated_at IS '更新时间';
 
+CREATE OR REPLACE TRIGGER trg_news_category_updated_at BEFORE UPDATE ON news_category
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
 -- 新闻表
-CREATE TABLE IF NOT EXISTS `news` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '新闻ID',
-  `title` VARCHAR(255) NOT NULL COMMENT '新闻标题',
-  `description` VARCHAR(500) NULL DEFAULT NULL COMMENT '新闻简介',
-  `content` TEXT NOT NULL COMMENT '新闻内容',
-  `image` VARCHAR(255) NULL DEFAULT NULL COMMENT '封面图片URL',
-  `author` VARCHAR(50) NULL DEFAULT NULL COMMENT '作者',
-  `category_id` INT UNSIGNED NOT NULL COMMENT '分类ID',
-  `views` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '浏览量',
-  `publish_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  INDEX `fk_news_category_idx` (`category_id` ASC),
-  INDEX `idx_publish_time` (`publish_time` DESC),
-  CONSTRAINT `fk_news_category`
-    FOREIGN KEY (`category_id`)
-    REFERENCES `news_category` (`id`)
+-- ============================================
+CREATE TABLE IF NOT EXISTS news (
+  id SERIAL NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description VARCHAR(500) DEFAULT NULL,
+  content TEXT NOT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  author VARCHAR(50) DEFAULT NULL,
+  category_id INTEGER NOT NULL,
+  views INTEGER NOT NULL DEFAULT 0,
+  publish_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_news_category
+    FOREIGN KEY (category_id)
+    REFERENCES news_category (id)
     ON DELETE RESTRICT
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='新闻表';
+);
+CREATE INDEX IF NOT EXISTS fk_news_category_idx ON news (category_id);
+CREATE INDEX IF NOT EXISTS idx_publish_time ON news (publish_time DESC);
+COMMENT ON TABLE news IS '新闻表';
+COMMENT ON COLUMN news.id IS '新闻ID';
+COMMENT ON COLUMN news.title IS '新闻标题';
+COMMENT ON COLUMN news.description IS '新闻简介';
+COMMENT ON COLUMN news.content IS '新闻内容';
+COMMENT ON COLUMN news.image IS '封面图片URL';
+COMMENT ON COLUMN news.author IS '作者';
+COMMENT ON COLUMN news.category_id IS '分类ID';
+COMMENT ON COLUMN news.views IS '浏览量';
+COMMENT ON COLUMN news.publish_time IS '发布时间';
+COMMENT ON COLUMN news.created_at IS '创建时间';
+COMMENT ON COLUMN news.updated_at IS '更新时间';
 
+CREATE OR REPLACE TRIGGER trg_news_updated_at BEFORE UPDATE ON news
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
 -- 相关新闻关联表（推荐系统）
-CREATE TABLE IF NOT EXISTS `related_news` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '关联ID',
-  `news_id` INT UNSIGNED NOT NULL COMMENT '新闻ID',
-  `related_news_id` INT UNSIGNED NOT NULL COMMENT '相关新闻ID',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `news_related_unique` (`news_id` ASC, `related_news_id` ASC),
-  INDEX `fk_related_news_news_idx` (`news_id` ASC),
-  INDEX `fk_related_news_related_idx` (`related_news_id` ASC),
-  CONSTRAINT `fk_related_news_news`
-    FOREIGN KEY (`news_id`)
-    REFERENCES `news` (`id`)
+-- ============================================
+CREATE TABLE IF NOT EXISTS related_news (
+  id SERIAL NOT NULL,
+  news_id INTEGER NOT NULL,
+  related_news_id INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT news_related_unique UNIQUE (news_id, related_news_id),
+  CONSTRAINT fk_related_news_news
+    FOREIGN KEY (news_id)
+    REFERENCES news (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_related_news_related`
-    FOREIGN KEY (`related_news_id`)
-    REFERENCES `news` (`id`)
+  CONSTRAINT fk_related_news_related
+    FOREIGN KEY (related_news_id)
+    REFERENCES news (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='相关新闻关联表';
+);
+CREATE INDEX IF NOT EXISTS fk_related_news_news_idx ON related_news (news_id);
+CREATE INDEX IF NOT EXISTS fk_related_news_related_idx ON related_news (related_news_id);
+COMMENT ON TABLE related_news IS '相关新闻关联表';
+COMMENT ON COLUMN related_news.id IS '关联ID';
+COMMENT ON COLUMN related_news.news_id IS '新闻ID';
+COMMENT ON COLUMN related_news.related_news_id IS '相关新闻ID';
+COMMENT ON COLUMN related_news.created_at IS '创建时间';
 
+-- ============================================
 -- 收藏表
-CREATE TABLE IF NOT EXISTS `favorite` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '收藏ID',
-  `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
-  `news_id` INT UNSIGNED NOT NULL COMMENT '新闻ID',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
-  PRIMARY KEY (`id`),
-  UNIQUE INDEX `user_news_unique` (`user_id` ASC, `news_id` ASC),
-  INDEX `fk_favorite_user_idx` (`user_id` ASC),
-  INDEX `fk_favorite_news_idx` (`news_id` ASC),
-  CONSTRAINT `fk_favorite_user`
-    FOREIGN KEY (`user_id`)
-    REFERENCES `user` (`id`)
+-- ============================================
+CREATE TABLE IF NOT EXISTS favorite (
+  id SERIAL NOT NULL,
+  user_id INTEGER NOT NULL,
+  news_id INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT user_news_unique UNIQUE (user_id, news_id),
+  CONSTRAINT fk_favorite_user
+    FOREIGN KEY (user_id)
+    REFERENCES "user" (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_favorite_news`
-    FOREIGN KEY (`news_id`)
-    REFERENCES `news` (`id`)
+  CONSTRAINT fk_favorite_news
+    FOREIGN KEY (news_id)
+    REFERENCES news (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='收藏表';
+);
+CREATE INDEX IF NOT EXISTS fk_favorite_user_idx ON favorite (user_id);
+CREATE INDEX IF NOT EXISTS fk_favorite_news_idx ON favorite (news_id);
+COMMENT ON TABLE favorite IS '收藏表';
+COMMENT ON COLUMN favorite.id IS '收藏ID';
+COMMENT ON COLUMN favorite.user_id IS '用户ID';
+COMMENT ON COLUMN favorite.news_id IS '新闻ID';
+COMMENT ON COLUMN favorite.created_at IS '收藏时间';
 
+-- ============================================
 -- 浏览历史表
-CREATE TABLE IF NOT EXISTS `history` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '历史ID',
-  `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
-  `news_id` INT UNSIGNED NOT NULL COMMENT '新闻ID',
-  `view_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '浏览时间',
-  PRIMARY KEY (`id`),
-  INDEX `fk_history_user_idx` (`user_id` ASC),
-  INDEX `fk_history_news_idx` (`news_id` ASC),
-  INDEX `idx_view_time` (`view_time` DESC),
-  CONSTRAINT `fk_history_user`
-    FOREIGN KEY (`user_id`)
-    REFERENCES `user` (`id`)
+-- ============================================
+CREATE TABLE IF NOT EXISTS history (
+  id SERIAL NOT NULL,
+  user_id INTEGER NOT NULL,
+  news_id INTEGER NOT NULL,
+  view_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_history_user
+    FOREIGN KEY (user_id)
+    REFERENCES "user" (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
-  CONSTRAINT `fk_history_news`
-    FOREIGN KEY (`news_id`)
-    REFERENCES `news` (`id`)
+  CONSTRAINT fk_history_news
+    FOREIGN KEY (news_id)
+    REFERENCES news (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='浏览历史表';
+);
+CREATE INDEX IF NOT EXISTS fk_history_user_idx ON history (user_id);
+CREATE INDEX IF NOT EXISTS fk_history_news_idx ON history (news_id);
+CREATE INDEX IF NOT EXISTS idx_view_time ON history (view_time DESC);
+COMMENT ON TABLE history IS '浏览历史表';
+COMMENT ON COLUMN history.id IS '历史ID';
+COMMENT ON COLUMN history.user_id IS '用户ID';
+COMMENT ON COLUMN history.news_id IS '新闻ID';
+COMMENT ON COLUMN history.view_time IS '浏览时间';
 
+-- ============================================
 -- AI聊天记录表（Agent）
-CREATE TABLE IF NOT EXISTS `ai_chat` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '聊天记录ID',
-  `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
-  `message` TEXT NOT NULL COMMENT '用户消息',
-  `response` TEXT NOT NULL COMMENT 'AI回复',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  INDEX `fk_ai_chat_user_idx` (`user_id` ASC),
-  INDEX `idx_created_at` (`created_at` DESC),
-  CONSTRAINT `fk_ai_chat_user`
-    FOREIGN KEY (`user_id`)
-    REFERENCES `user` (`id`)
+-- ============================================
+CREATE TABLE IF NOT EXISTS ai_chat (
+  id SERIAL NOT NULL,
+  user_id INTEGER NOT NULL,
+  message TEXT NOT NULL,
+  response TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  CONSTRAINT fk_ai_chat_user
+    FOREIGN KEY (user_id)
+    REFERENCES "user" (id)
     ON DELETE CASCADE
     ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI聊天记录表';
+);
+CREATE INDEX IF NOT EXISTS fk_ai_chat_user_idx ON ai_chat (user_id);
+CREATE INDEX IF NOT EXISTS idx_created_at ON ai_chat (created_at DESC);
+COMMENT ON TABLE ai_chat IS 'AI聊天记录表';
+COMMENT ON COLUMN ai_chat.id IS '聊天记录ID';
+COMMENT ON COLUMN ai_chat.user_id IS '用户ID';
+COMMENT ON COLUMN ai_chat.message IS '用户消息';
+COMMENT ON COLUMN ai_chat.response IS 'AI回复';
+COMMENT ON COLUMN ai_chat.created_at IS '创建时间';
 
 -- 初始化数据
 -- 插入默认新闻分类
-INSERT INTO `news_category` (`name`, `sort_order`) VALUES 
+INSERT INTO news_category (name, sort_order) VALUES 
 ('头条', 1),
 ('社会', 2),
 ('国内', 3),
@@ -168,7 +261,7 @@ INSERT INTO `news_category` (`name`, `sort_order`) VALUES
 ('财经', 8);
 
 -- 插入默认新闻
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `views`, `publish_time`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, views, publish_time) VALUES
 ('国家主席发表2024年新年贺词', '主席总结过去一年成就，展望未来发展蓝图，强调高质量发展。', '2023年12月31日晚，国家主席通过中央广播电视总台和互联网发表新年贺词。他回顾了2023年在经济建设、科技创新、疫情防控等方面取得的成就，并指出2024年要坚持稳中求进，全面深化改革开放，推动高质量发展，增进民生福祉。贺词在全国各地干部群众中引发热烈反响，大家表示要齐心协力共创美好未来。', 'https://picsum.photos/id/100/200/200', '新华社', 1, 12500, '2024-01-01 08:00:00'),
 ('全国两会将于3月初在京召开', '十四届全国人大二次会议和全国政协十四届二次会议议程公布。', '据悉，第十四届全国人民代表大会第二次会议和全国政协第十四届二次会议将分别于2024年3月5日和3月4日在北京开幕。本次两会将审议政府工作报告、计划报告、预算报告以及国务院机构改革方案等多项重要文件，各界高度关注经济发展目标与民生政策新动向。', 'https://picsum.photos/id/101/200/200', '人民日报', 1, 8900, '2024-01-05 09:30:00'),
 ('我国成功发射通信技术试验卫星十一号', '卫星顺利进入预定轨道，将用于开展多频段、高速率通信试验。', '2024年1月10日15时03分，我国在西昌卫星发射中心使用长征二号丁运载火箭，成功将通信技术试验卫星十一号发射升空。该卫星主要用于开展Ka频段宽带通信、新型天线展开等关键技术验证，可为下一代通信技术积累数据。此次任务是长征系列火箭的第456次飞行。', 'https://picsum.photos/id/102/200/200', '央视新闻', 1, 11200, '2024-01-10 18:20:00'),
@@ -220,7 +313,7 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('全国住房公积金缴存额超3万亿', '2023年住房公积金年度缴存额达31935.05亿元，发放个人住房贷款近1.5万亿。', '住房城乡建设部、财政部、中国人民银行联合发布《全国住房公积金2023年年度报告》。报告显示，2023年，全国住房公积金各项业务运行平稳，住房公积金缴存额31935.05亿元，发放个人住房贷款14713.69亿元，支持了约200万户缴存职工解决住房问题。', 'https://picsum.photos/id/148/200/200', '中国建设报', 1, 4700, '2024-03-08 14:55:00'),
 ('中国电影2024年春节档票房创影史新高', '总票房突破80亿元，观影人次达1.63亿，国产影片表现强势。', '国家电影局初步统计数据显示，2024年春节档（农历除夕至正月初八）电影总票房突破80亿元，刷新了中国影史春节档票房纪录。观影总人次达1.63亿。《热辣滚烫》《飞驰人生2》《第二十条》等国产影片票房领先，题材多样，质量上乘，满足了观众节假日文化消费需求。', 'https://picsum.photos/id/149/200/200', '中国电影报', 1, 12700, '2024-02-10 20:00:00');
 
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `views`, `publish_time`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, views, publish_time) VALUES
 ('哈尔滨市2025年"冰城好人"先进事迹发布', '45位来自各行各业的先进典型获表彰，涵盖孝老爱亲、见义勇为、诚实守信等类型', '近日，哈尔滨市举行第23个全国“公民道德宣传日”活动暨2025年“冰城好人”先进事迹发布仪式。45位好人中包括坚守十年诠释“执子之手”的郭玉杰、机场跪地救人的“白衣天使”林林等人。活动通过沉浸式展演和暖心服务让道德之光闪耀冰城:cite[1]。', 'https://picsum.photos/id/150/200/200', '黑龙江日报', 2, 8900, '2025-09-22 10:30:00'),
 ('2025"感动上海"年度人物揭晓', '10位平民英雄获奖，包括守护病妻23年的技师、扮演山西家庭"儿子"的民警等感人故事', '上海评选出2025年度感动人物，龚建强照顾植物人妻子23年创造生命奇迹，民警姜经纬12年扮演山西丧子家庭的“儿子”抚平创伤。这些平凡人的不平凡故事汇聚成上海最温暖的底色，彰显城市温度:cite[7]。', 'https://picsum.photos/id/151/200/200', '澎湃新闻', 2, 12700, '2025-09-22 09:15:00'),
 ('社区开展老年人数字技能培训', '帮助百余名老人掌握智能手机使用，跨越数字鸿沟', '某社区服务中心开展为期一周的老年人智能手机培训，志愿者手把手教学微信视频、网上挂号、防诈骗知识。75岁的王大爷首次与外地孙子视频通话，激动不已。活动有效帮助老人融入数字生活:cite[1]。', 'https://picsum.photos/id/152/200/200', '社区报', 2, 4500, '2025-09-21 14:20:00'),
@@ -273,7 +366,7 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('志愿者陪伴孤儿过中秋', '送月饼、做游戏，让孩子感受家庭温暖', '中秋前夕志愿者孤儿院陪伴孩子，做灯笼、讲故事。失去父母的小丽收到书包礼物露出笑容：“谢谢哥哥姐姐们。”', 'https://picsum.photos/id/199/200/200', '关爱儿童', 2, 5600, '2025-08-05 15:50:00'),
 ('社区举办心理健康讲座', '专家讲解压力管理，百名居民参与互动', '心理咨询师社区讲解心理健康知识，教情绪管理技巧。互动环节居民倾诉压力，学习放松方法。此类活动将定期举办。', 'https://picsum.photos/id/200/200/200', '心理卫生', 2, 4500, '2025-08-04 13:20:00');
 
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `views`, `publish_time`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, views, publish_time) VALUES
 ('新疆大石峡水利枢纽工程正式下闸蓄水', '世界最高混凝土面板砂砾石坝下闸蓄水，转入运行准备阶段。', '2025年9月20日，国家重大水利工程——新疆大石峡水利枢纽工程正式下闸蓄水。该工程位于新疆阿克苏地区库玛拉克河中下游，最大坝高247米，创造了混凝土面板砂砾石坝建设的世界纪录。工程于2019年11月全面动工，计划2026年全面完工，届时将极大提升区域水资源调控能力。', 'https://picsum.photos/id/200/200/200', '央视新闻', 3, 11200, '2025-09-20 09:46:00'),
 ('长庆油田第二采油厂原油日产量突破万吨', '黄土高原建成万吨级大油田，为我国能源安全提供重要支撑。', '2025年9月20日，长庆油田第二采油厂日产原油首次突破10000吨，达到10039吨。该厂依托“水平井+体积压裂”等技术，成功突破低渗透油藏开发瓶颈，实现页岩油规模效益开发。目前已在庆阳革命老区建成10个低渗透油田和5个千吨级采油作业区。', 'https://picsum.photos/id/201/200/200', '央视新闻', 3, 8900, '2025-09-20 09:46:00'),
 ('我国首台15米口径亚毫米波望远镜启动建设', '首台自主研发的15米口径亚毫米波望远镜在青海德令哈启动建设。', '2025年9月20日，我国首台自主研发的15米口径亚毫米波望远镜（XSMT）在青海德令哈正式启动建设。该望远镜由中国科学院紫金山天文台牵头研制，配备高精度天线面板、大视场多色相机等先进设备，将用于研究星系形成与演化规律，追踪生命相关分子的起源线索。', 'https://picsum.photos/id/202/200/200', '央视新闻', 3, 10500, '2025-09-20 09:46:00'),
@@ -327,7 +420,7 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('陵水黄鳍金枪鱼海上养殖示范基地投喂金枪鱼', '海上养殖示范基地工作人员正在投喂金枪鱼。', '2025年9月17日，陵水黄鳍金枪鱼海上养殖示范基地的工作人员在投喂金枪鱼。该基地通过科学养殖技术，推动海洋渔业可持续发展，为市场提供优质水产品。', 'https://picsum.photos/id/250/200/200', '新华社', 3, 4800, '2025-09-17 16:20:00');
 
 
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `publish_time`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, publish_time) VALUES
 ('全球气候峰会达成历史性协议', '195国承诺2030年碳排放减半', '在刚刚结束的联合国气候峰会上，195个国家达成历史性协议，承诺到2030年将全球碳排放减少50%。该协议由欧盟、美国和中国共同推动，预计每年减少10亿吨二氧化碳排放。环保组织欢迎协议但呼吁加强执行力度。', 'https://picsum.photos/id/12/200/200', 'John Smith', 4, '2023-08-10 14:20:00'),
 ('美国发布全球首个AI监管法案', '规范高风险领域AI应用', '美国联邦政府正式公布《人工智能监管法案》，成为全球首个制定全面AI监管框架的国家。法案要求所有AI系统通过伦理审查，限制在医疗、金融等高风险领域的使用。科技巨头支持但初创企业担忧创新受阻。', 'https://picsum.photos/id/37/200/200', 'Jane Doe', 4, '2023-08-11 09:15:00'),
 ('欧盟通过数字税新规', '针对科技巨头征收3%数字服务税', '欧盟议会通过《数字服务税法案》，对全球年收入超7.5亿欧元的科技企业征收3%数字服务税。该税将用于支持欧洲数字基础设施建设，谷歌、亚马逊等巨头面临新合规成本。', 'https://picsum.photos/id/48/200/200', 'Michael Johnson', 4, '2023-08-12 11:45:00'),
@@ -385,7 +478,7 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('全球首个气候适应型农业技术', '耐旱作物品种培育成功', '国际农业研究中心成功培育全球首个气候适应型作物品种，可在干旱条件下保持30%产量。该技术已应用于非洲干旱地区，缓解粮食危机。', 'https://picsum.photos/id/95/200/200', 'Michael Davis', 4, '2023-10-03 13:50:00'),
 ('全球首个太空太阳能传输系统', '向地球传输清洁能源', '中国启动全球首个太空太阳能传输系统，计划2025年向地球传输清洁能源。该系统将解决地面太阳能间歇性问题，提升能源稳定性。', 'https://picsum.photos/id/17/200/200', 'Emily Wilson', 4, '2023-10-04 15:15:00'),
 ('全球首个气候融资创新基金', '支持绿色科技初创企业', '世界银行设立全球首个气候融资创新基金，支持绿色科技初创企业。首批投资5亿美元，用于AI气候模型和碳捕获技术开发。', 'https://picsum.photos/id/29/200/200', 'Sarah Johnson', 4, '2023-10-05 11:30:00');
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `publish_time`, `views`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, publish_time, views) VALUES
 ('周杰伦新专辑《最伟大的作品》全球首发', '新专辑融合古典与电子音乐元素', '周杰伦全新专辑《最伟大的作品》全球首发，首日销量突破800万张。专辑收录12首新歌，主打曲《最伟大的作品》以莫奈名画为灵感，MV展现艺术与音乐的交融。周杰伦在直播中透露创作过程历时18个月，融入5种语言歌词。专辑上线后，QQ音乐、网易云音乐同时出现服务器拥堵，相关话题阅读量超20亿。粉丝自发制作"杰伦艺术展"周边，带动周边商品销售增长300%。', 'https://picsum.photos/id/250/200/200', 'Alex Chen', 5, '2023-08-01 08:30:00', 12580),
 ('《狂飙》主演张颂文获戛纳影帝', '中国演员首次获戛纳表演类最高奖', '张颂文凭借《狂飙》中高启盛一角，荣获第76届戛纳电影节最佳男主角奖。颁奖礼上，张颂文用中文发表获奖感言："感谢中国电视剧的崛起，感谢观众对真实表演的追求。" 《狂飙》全球播放量突破25亿，张颂文从配角逆袭成国际巨星。获奖后，其社交媒体粉丝数激增500万，新剧《沉默的真相》重映热度飙升。', 'https://picsum.photos/id/251/200/200', 'Lily Wang', 5, '2023-08-02 14:15:00', 9875),
 ('泰勒·斯威夫特时代巡演创纪录', '单场10万人见证历史时刻', '泰勒·斯威夫特在洛杉矶体育场举办"时代巡回"演唱会，单场观众10万人，创北美体育场演出纪录。开场曲《Love Story》全场合唱引爆全场，她特别致敬中国粉丝："感谢你们的爱让我成为更好的歌手。" 演唱会直播观看人数超1.2亿，相关话题登上全球热搜。泰勒表示新专辑《Midnights》将融入更多电子元素，预计2023年10月发布。', 'https://picsum.photos/id/252/200/200', 'Tom Li', 5, '2023-08-03 19:45:00', 15320),
@@ -432,7 +525,7 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('王菲演唱会重燃热潮', '经典歌曲重现舞台', '王菲时隔5年举办"菲凡"演唱会，首场座无虚席。她演唱了《红豆》《传奇》等经典歌曲，新编曲版本引发全场共鸣。特别环节中，她与女儿窦靖童合唱《匆匆那年》，温馨画面感动全场。王菲表示："感谢大家陪我走过这15年。" 演唱会直播观看人数超1亿，相关话题登上微博热搜榜TOP1。', 'https://picsum.photos/id/293/200/200', 'Peter Chen', 5, '2023-08-13 21:00:00', 17450),
 ('《中国奇谭》第二季启动', '国风动画再创新高度', '《中国奇谭》第二季正式宣布启动，由原班人马打造。导演陈廖宇透露新季将讲述"当代中国青年的奇幻冒险"，新增"赛博敦煌"等创新题材。首支预告片展现水墨动画与3D技术的完美融合，画面充满东方美学。制作团队表示，第二季将加入AR互动功能，观众可通过手机APP参与剧情。第二季预告片24小时播放量破3.5亿。', 'https://picsum.photos/id/294/200/200', 'Amy Liu', 5, '2023-08-14 15:35:00', 12870),
 ('邓超新综艺《快乐再出发》', '经典综艺IP重启', '邓超加盟全新综艺《快乐再出发》，与李晨、陈赫组成"快乐家族"。节目聚焦30岁职场人的生活状态，通过真实互动展现友情与成长。首期节目中，三人挑战"城市生存"任务，邓超现场即兴表演脱口秀。制作方透露，节目将加入"职场观察室"环节，观众可实时参与讨论。开播首周播放量突破9000万。', 'https://picsum.photos/id/295/200/200', 'Tommy Wang', 5, '2023-08-15 10:50:00', 10560);
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `publish_time`, `views`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, publish_time, views) VALUES
 ('梅西领衔阿根廷队晋级世界杯决赛', '世界杯半决赛击败法国队', '在卡塔尔世界杯半决赛中，阿根廷队凭借梅西梅开二度和迪马利亚的进球，以3-2战胜法国队。比赛在加时赛上演惊天逆转，梅西在点球大战中冷静命中，助球队挺进决赛。赛后梅西表示："这是团队的胜利，我们永不放弃。" 阿根廷队将与法国队争夺冠军，这是两队在世界杯决赛的第三次对决。梅西本场贡献2球1助，成为赛事关键先生。阿根廷球迷庆祝活动席卷布宜诺斯艾利斯，全城陷入狂欢。', 'https://picsum.photos/id/300/200/200', 'John Smith', 6, '2023-08-01 14:30:00', 18500),
 ('中国女排3-0横扫日本队', '世锦赛小组赛强势晋级', '中国女排在世锦赛小组赛中以3-0完胜日本队，三局比分25-18、25-20、25-16。队长朱婷斩获18分，成为全场最佳。主教练蔡斌表示："我们针对日本队的快攻做了针对性部署，队员执行非常到位。" 此役后，中国女排小组赛全胜，提前锁定八强席位。朱婷赛后采访称："每场比赛都是新的挑战，我们准备好了。" 本次世锦赛中国女排已连续五届进入八强。', 'https://picsum.photos/id/301/200/200', 'Linda Chen', 6, '2023-08-02 10:15:00', 14200),
 ('NBA总决赛湖人队夺冠', '詹姆斯生涯第四冠', '洛杉矶湖人队在NBA总决赛中以4-2击败波士顿凯尔特人，夺得队史第18座总冠军奖杯。勒布朗·詹姆斯荣膺FMVP，场均28.5分10.3篮板7.2助攻。总决赛第6场，詹姆斯在最后时刻关键抢断锁定胜局。湖人队总经理佩林卡表示："这是团队的胜利，詹姆斯用行动证明了自己。" 詹姆斯生涯第四冠，成为NBA历史首位在三支不同球队夺冠的球员。夺冠后，湖人队举行盛大庆祝活动，球迷涌入斯台普斯中心。', 'https://picsum.photos/id/302/200/200', 'Mike Johnson', 6, '2023-08-03 19:45:00', 21700),
@@ -479,7 +572,7 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('中国田径队世锦赛', '苏炳添晋级百米半决赛', '中国田径队在世锦赛男子100米预赛中，苏炳添以10.05秒晋级半决赛。这是他本赛季最好成绩，也是中国选手在世锦赛上的最佳表现。苏炳添表示："我准备好了，会全力以赴。" 中国田径队已获得1枚奖牌，暂列奖牌榜第9位。苏炳添有望成为首位在世锦赛百米半决赛中晋级的中国选手。世锦赛将于8月27日结束，中国队目标是冲击奖牌榜前5。', 'https://picsum.photos/id/343/200/200','James Chen', 6, '2023-08-12 10:15:00', 16800);
 
 
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `publish_time`, `views`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, publish_time, views) VALUES
 ('量子计算机突破性进展', '中国团队实现量子优越性', '中国科学技术大学团队成功研发"祖冲之三号"量子计算机，处理特定任务速度比经典超算快1000万倍。该计算机采用超导量子芯片，实现100个量子比特的稳定操控。研究团队表示，这一突破将推动药物研发和气候模拟等领域发展。相关论文发表在《自然》杂志，引发全球科技界关注。量子计算商业化进程有望提前至2025年。', 'https://picsum.photos/id/300/200/200', 'Dr. Zhang', 7, '2023-08-01 09:15:00', 3850),
 ('AI医疗诊断系统获FDA认证', '癌症早期检测准确率超95%', '全球首款AI医疗诊断系统"MedAI"获美国FDA认证，可精准识别肺癌早期病变。该系统通过分析CT影像，准确率达95.3%，比传统方法提升23%。研发团队来自MIT和哈佛医学院，已与30家医院建立合作。系统每分钟可处理200份影像，大幅缓解医生工作压力。FDA表示，这将改变癌症筛查行业标准。', 'https://picsum.photos/id/301/200/200', 'Dr. Lee', 7, '2023-08-02 14:30:00', 4200),
 ('SpaceX星舰第三次试飞成功', '火箭回收技术再突破', 'SpaceX星舰完成第三次试飞，首次实现火箭第一级在大气层内可控回收。此次试飞高度达120公里，飞行时间10分钟。马斯克表示："这是向火星殖民迈出的关键一步。" 试飞中星舰完成多项关键测试，包括热防护系统验证。SpaceX计划2024年启动月球着陆任务。此次成功使SpaceX成为全球首个实现火箭重复使用的商业航天公司。', 'https://picsum.photos/id/302/200/200', 'Dr. Chen', 7, '2023-08-03 11:45:00', 5120),
@@ -531,7 +624,7 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('谷歌发布AI艺术创作工具', '生成专业级艺术作品', '谷歌推出AI艺术创作工具ArtAI，可生成专业级艺术作品。输入描述即可生成油画、水彩等风格作品。在测试中，艺术质量获专业评审认可。谷歌表示，这将 democratize art creation。工具已用于教育和创意行业，日均生成10万+作品。', 'https://picsum.photos/id/348/200/200', 'Dr. Liu', 7, '2023-08-18 14:45:00', 5030),
 ('中国建成AI交通大脑', '城市拥堵减少35%', '中国上海建成AI交通大脑，实时优化交通信号。在测试中，城市拥堵减少35%，平均通行速度提升25%。系统覆盖全市2000个路口。上海交通委表示，这是智慧交通标杆。AI系统能预测拥堵并提前调整，已减少10%的交通事故。', 'https://picsum.photos/id/349/200/200', 'Dr. Smith', 7, '2023-08-19 17:20:00', 5380);
 
-INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `category_id`, `publish_time`, `views`) VALUES
+INSERT INTO news (title, description, content, image, author, category_id, publish_time, views) VALUES
 ('美联储宣布加息25基点', '通胀压力持续引发政策调整', '美联储宣布将基准利率上调25个基点至5.25%，为连续第11次加息。主席鲍威尔表示，通胀仍高于目标，需保持紧缩政策。市场预计今年将再加息两次。美股期货下跌1.2%，黄金价格上涨3%。经济学家警告，加息可能引发经济衰退。美联储强调将密切关注数据，避免过度紧缩。', 'https://picsum.photos/id/370/200/200', 'Economic Analyst', 8, '2023-08-01 09:30:00', 12500),
 ('中国7月CPI同比上涨0.2%', '消费市场温和复苏', '国家统计局公布7月CPI同比上涨0.2%，PPI同比下降4.4%。食品价格涨幅收窄，猪肉价格下降15%。专家分析，消费复苏态势良好，但房地产拖累经济。央行表示将保持货币政策稳健。7月社会消费品零售总额增长8.5%，创年内新高。专家预测三季度GDP增速将达5.2%。', 'https://picsum.photos/id/371/200/200', 'Finance Review', 8, '2023-08-02 14:15:00', 15800),
 ('特斯拉Q2财报超预期', '净利润增长12.3%', '特斯拉公布2023年Q2财报，营收210亿美元，净利润2.3亿美元，超市场预期。电动车销量达30.5万辆，同比增长25%。CEO马斯克表示，上海工厂产能恢复是关键。股价盘后上涨8.5%。机构预测全年交付量将达150万辆。特斯拉宣布在德国新建超级工厂，投资10亿欧元。', 'https://picsum.photos/id/372/200/200', 'Stock Market Insider', 8, '2023-08-03 11:40:00', 18400),
@@ -587,5 +680,5 @@ INSERT INTO `news` (`title`, `description`, `content`, `image`, `author`, `categ
 ('全球黄金投资需求旺盛', 'ETF资金流入创纪录', '2023年Q2全球黄金ETF资金流入达300吨，创历史新高。央行购金和避险需求推动。金价上涨15%，达2000美元/盎司。分析师认为，地缘政治风险将维持黄金吸引力。黄金投资占全球投资组合比例升至10%。黄金作为避险资产价值凸显。', 'https://picsum.photos/id/422/200/200', 'Gold Market Analyst', 8, '2023-08-22 15:35:00', 15800),
 ('中国快递业务量突破1000亿件', '数字化转型提速', '7月快递业务量达105亿件，同比增长18%。智能分拣、无人配送技术应用率提升至40%。顺丰、京东物流数字化投入增加。专家称，快递业数字化转型将提升效率。快递单价下降5%，但服务质量提升。预计全年业务量将超1200亿件。', 'https://picsum.photos/id/423/200/200', 'Logistics Analyst', 8, '2023-08-23 10:50:00', 17200);
 -- 创建测试用户
-INSERT INTO `user` (`username`, `password`, `nickname`, `gender`, `bio`) VALUES 
+INSERT INTO "user" (username, password, nickname, gender, bio) VALUES 
 ('admin', '$2b$12$TKevPbXcGL6Q1WdaFKbLhuueBuLfLyhkdk/0ESBvBv7X74.rNwiNm', '测试用户', 'unknown', '这是一个测试账号');

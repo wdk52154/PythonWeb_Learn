@@ -7,7 +7,7 @@
 - **Python 3.12**
 - **FastAPI** — 异步 Web 框架
 - **SQLAlchemy 2.0** — 异步 ORM
-- **MySQL** — 关系型数据库（通过 aiomysql 异步驱动连接）
+- **PostgreSQL** — 关系型数据库（通过 asyncpg 异步驱动连接）
 - **Redis** — 缓存中间件（通过 redis.asyncio 异步客户端连接）
 - **Passlib + bcrypt** — 密码加密
 - **Pydantic v2** — 请求数据校验与响应序列化
@@ -70,19 +70,23 @@ news-headline-backend/
 
 ## 环境准备
 
-### 1. 安装 MySQL
+### 1. 安装 PostgreSQL
 
-确保本地已安装 MySQL 5.7+ 或 8.0，并创建数据库：
+确保本地已安装 PostgreSQL（推荐 16 / 17），并创建数据库：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS news_app DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE news_app;
 ```
+
+PostgreSQL 默认使用 UTF8 编码，无需像 MySQL 那样在建库和连接时指定字符集。
 
 然后导入建表脚本和测试数据：
 
 ```bash
-mysql -u root -p news_app < db/database.sql
+psql -U 你的用户名 -d news_app -f db/database.sql
 ```
+
+> 注意：`db/database.sql` 需为 PostgreSQL 语法（自增主键用 `SERIAL` 或 `IDENTITY`，不包含 `ENGINE=InnoDB`、`utf8mb4` 等 MySQL 专有写法）。
 
 ### 2. 安装 Redis
 
@@ -115,7 +119,7 @@ pip install -r requirements.txt
 `config/db_confing.py` — 修改数据库连接地址、用户名、密码：
 
 ```python
-ASYNC_DATABASE_URL = "mysql+aiomysql://root:你的密码@localhost:3306/news_app?charset=utf8mb4"
+ASYNC_DATABASE_URL = "postgresql+asyncpg://用户名:密码@localhost:5432/news_app"
 ```
 
 `config/cache_conf.py` — 修改 Redis 连接地址（如果 Redis 不在本机或端口不是 6379）：
