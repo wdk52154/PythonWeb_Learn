@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 
 # 数据库URL
-ASYNC_DATABASE_URL = "postgresql+asyncpg://wangdekang@localhost:5432/news_app?charset=utf8mb4"
+ASYNC_DATABASE_URL = "postgresql+asyncpg://wangdekang@localhost:5432/news_app"
 
 # 创建异步引擎
 async_engine = create_async_engine(
