@@ -117,15 +117,18 @@ class BookUpdate(BaseModel):
 async def update_book(
     book_id: int, data: BookUpdate, db: AsyncSession = Depends(get_database)
 ):
+    # 1 查找图书
     db_book = await db.get(Book, book_id)
+    # 如果未找到,抛出异常
     if db_book is None:
         raise HTTPException(status_code=404, detail="查无此书")
     
-    # 重新赋值
+    # 2 找到了则修改：重新赋值
     db_book.bookname = data.bookname
     db_book.author = data.author
     db_book.price = data.price
     db_book.publisher = data.publisher
 
+    # 3 提交到数据库
     await db.commit()
     return db_book
