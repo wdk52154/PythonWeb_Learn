@@ -18,6 +18,7 @@ from sqlalchemy import (
     select,
     func,
 )  # 导入列类型：日期时间、定点数(金额用)、字符串
+from pydantic import BaseModel
 
 app = FastAPI()
 ASYNC_DATABASS_URL = "postgresql+asyncpg://wangdekang@localhost:5432/fastapi_learn"
@@ -97,16 +98,20 @@ async def get_database():
             await session.close()  # 关闭会话
 
 
-# 分页查询
-app.get("/book/get_book_list")
-async def get_book_list(
-    page: int = 1, page_size: int = 3, db: AsyncSession = Depends(get_database)
-):
-    # ( 页码 - 1)*每页数量
-    skip = (page - 1) * page_size
+# 需求: 用户输入图书信息（id、书名、作者、价格、出版社） -> 新增
+# 用户输入 -> 参数 -> 请求体
+class BookBase(BaseModel):
+    id: int
+    bookname: str
+    author: str
+    price: float
+    publisher: str
 
-    # offset 跳过的记录数; limit 每页的记录数
-    stmt = select(Book).offset(skip).limit(page_size)
-    result = await db.execute(stmt)
-    books = result.scalars().all()
-    return books
+
+@app.post("/book/add_book")
+async def add_book(book: BookBase, db: AsyncSession = Depends(get_database)):
+    # ORM对象 -> add -> commit 
+   book_obj =  Book(**book.__dict__)
+   db.add(book_obj)
+   await db.commit()
+   return book
