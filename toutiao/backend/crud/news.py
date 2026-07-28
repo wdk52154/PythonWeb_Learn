@@ -22,3 +22,12 @@ async def get_news_count (db: AsyncSession, category_id: int):
     result = await db.execute(stmt)
     # return len(result.scalars().all())
     return result.scalar_one() # 只能有一个结果,否则报错
+
+
+async def get_news_detail (db: AsyncSession, news_id: int):
+    stmt = select(News).where(News.id == news_id ) 
+    result = await db.execute(stmt)
+    # 查不到时返回 None, 由路由层判断后抛出 404
+    return result.scalar_one_or_none()
+ 
+
