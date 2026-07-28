@@ -3,12 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.news import Category, News
 
 
+# 获取新闻分类
 async def get_categories(db: AsyncSession, skip: int = 0, limit: int = 100):
     stmt = select(Category).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
 
 
+# 获取新闻列表
 async def get_news_list(
     db: AsyncSession, category_id: int = 0, skip: int = 100, limit: int = 10
 ):
@@ -18,6 +20,7 @@ async def get_news_list(
     return result.scalars().all()
 
 
+# 获取新闻总数
 async def get_news_count(db: AsyncSession, category_id: int):
     # 查询的是指定分类下的新闻数量
     stmt = select(func.count(News.id)).where(News.category_id == category_id)
@@ -26,6 +29,7 @@ async def get_news_count(db: AsyncSession, category_id: int):
     return result.scalar_one()  # 只能有一个结果,否则报错
 
 
+# 获取新闻详情
 async def get_news_detail(db: AsyncSession, news_id: int):
     stmt = select(News).where(News.id == news_id)
     result = await db.execute(stmt)
@@ -33,9 +37,41 @@ async def get_news_detail(db: AsyncSession, news_id: int):
     return result.scalar_one_or_none()
 
 
+# 新闻浏览量+1
 async def increase_news_views(db: AsyncSession, news_id: int):
     stmt = update(News).where(News.id == news_id).values(views=News.views + 1)
     result = await db.execute(stmt)
     await db.commit()
     # 更新 -> 检查数据库是否真的命中了数据 -> 命中了返回True
     return result.rowcount > 0
+
+
+# 获取相关推荐新闻
+async def get_related_news(
+    db: AsyncSession, news_id: int, category_id: int, limit: int = 5
+):
+    # order_by 排序 -> 浏览量和发布时间
+    stmt = (
+        select(News)
+        .where(News.category_id == category_id, News.id != news_id)
+        .order_by(
+            News.views.desc(), News.publish_time.desc()  # 默认是升序, desc 表示降序
+        )
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    related_news = result.scalars().all()
+    # 列表推导式 推导出新闻的核心数据，然后在return
+    return [
+        {
+            "id": news_detail.id,
+            "title": news_detail.title,
+            "content": news_detail.content,
+            "image": news_detail.image,
+            "author": news_detail.author,
+            "publishTime": news_detail.publish_time,
+            "categoryId": news_detail.category_id,
+            "views": news_detail.views,
+        }
+        for news_detail in related_news
+    ]
