@@ -4,9 +4,11 @@ from schemas.users import UserRequest
 
 from utils.response import success_response
 from schemas.users import UserAuthResponse, UserInfoResponse
-from config.db_conf import get_db
+from config.db_config import get_db
 from crud import users
 from starlette import status
+from utils.auth import get_current_user
+from models.users import User
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -44,7 +46,7 @@ async def register(
 # 登陆
 @router.post("/login")
 async def login(user_data: UserRequest, db: AsyncSession = Depends(get_db)):
-    #登陆逻辑： 验证用户是否存在 ->验证码 -> 生成 Token -> 响应结果
+    # 登陆逻辑： 验证用户是否存在 ->验证码 -> 生成 Token -> 响应结果
     user = await users.authenticate_user(db, user_data.username, user_data.password)
     # 全局的异常处理器就是规定异常响应格式,通用的格式走异常处理器，具体的业务错误自己写if判断抛异常,
     if not user:
@@ -55,4 +57,11 @@ async def login(user_data: UserRequest, db: AsyncSession = Depends(get_db)):
     response_data = UserAuthResponse(
         token=token, user_info=UserInfoResponse.model_validate(user)
     )
-    return success_response(message="登陆成功啦",data=response_data)
+    return success_response(message="登陆成功啦", data=response_data)
+
+
+# 获取用户信息
+# 查Token查用户 -> 封装crud -> 功能整合成一个工具函数 ->路由导入使用：依赖注入
+@router.get("/info")
+async def get_user_info(user: User = Depends(get_current_user)):
+    return success_response(message="获取用户信息成功",data=UserInfoResponse.model_validate(user))
