@@ -17,11 +17,12 @@ async def register(
     if existing_user:
         raise HTTPException(status_code=400, detail="用户已存在")
     user = await users.create_user(db, user_data)
+    token = await users.create_token(db, user.id)
     return {
         "code": 200,
         "message": "注册成功",
         "data": {
-            "token": "用户访问令牌",
+            "token": token,
             "userInfo": {
                 "id": user.id,
                 "username": user.username,
