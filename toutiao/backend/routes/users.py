@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.users import UserRequest
 
+from utils.response import success_response
+from schemas.users import UserAuthResponse, UserInfoResponse
 from config.db_conf import get_db
 from crud import users
 
@@ -18,16 +20,20 @@ async def register(
         raise HTTPException(status_code=400, detail="用户已存在")
     user = await users.create_user(db, user_data)
     token = await users.create_token(db, user.id)
-    return {
-        "code": 200,
-        "message": "注册成功",
-        "data": {
-            "token": token,
-            "userInfo": {
-                "id": user.id,
-                "username": user.username,
-                "bio": user.bio,
-                "avatar": user.avatar,
-            },
-        },
-    }
+    # return {
+    #     "code": 200,
+    #     "message": "注册成功",
+    #     "data": {
+    #         "token": token,
+    #         "userInfo": {
+    #             "id": user.id,
+    #             "username": user.username,
+    #             "bio": user.bio,
+    #             "avatar": user.avatar,
+    #         },
+    #     },
+    # }
+    response_data = UserAuthResponse(
+        token=token, user_info=UserInfoResponse.model_validate(user)
+    )
+    return success_response(message="注册成功", data=response_data)
