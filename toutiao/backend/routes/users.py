@@ -44,7 +44,9 @@ async def register(
 # 登陆
 @router.post("/login")
 async def login(user_data: UserRequest, db: AsyncSession = Depends(get_db)):
+    #登陆逻辑： 验证用户是否存在 ->验证码 -> 生成 Token -> 响应结果
     user = await users.authenticate_user(db, user_data.username, user_data.password)
+    # 全局的异常处理器就是规定异常响应格式,通用的格式走异常处理器，具体的业务错误自己写if判断抛异常,
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误"
