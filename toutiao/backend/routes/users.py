@@ -6,10 +6,12 @@ from utils.response import success_response
 from schemas.users import UserAuthResponse, UserInfoResponse
 from config.db_conf import get_db
 from crud import users
+from starlette import status
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
+# 注册
 @router.post("/register")
 async def register(
     user_data: UserRequest, db: AsyncSession = Depends(get_db)
@@ -37,3 +39,18 @@ async def register(
         token=token, user_info=UserInfoResponse.model_validate(user)
     )
     return success_response(message="注册成功", data=response_data)
+
+
+# 登陆
+@router.post("/login")
+async def login(user_data: UserRequest, db: AsyncSession = Depends(get_db)):
+    user = await users.authenticate_user(db, user_data.username, user_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误"
+        )
+    token = await users.create_token(db, user.id)
+    response_data = UserAuthResponse(
+        token=token, user_info=UserInfoResponse.model_validate(user)
+    )
+    return success_response(message="登陆成功啦",data=response_data)
