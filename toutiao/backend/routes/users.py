@@ -10,7 +10,7 @@ from starlette import status
 from utils.auth import get_current_user
 from models.users import User
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+router = APIRouter(prefix="/api/user", tags=["users"])
 
 
 # 注册
