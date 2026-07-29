@@ -12,6 +12,7 @@ from models.users import UserToken
 async def get_user_by_username(db: AsyncSession, username: str):
     query = select(User).where(User.username == username)
     result = await db.execute(query)
+ #  result = await db.execute("query") 测试数据库操作失败
     return result.scalar_one_or_none()
 
 

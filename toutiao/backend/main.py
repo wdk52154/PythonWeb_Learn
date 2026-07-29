@@ -1,9 +1,12 @@
 from routes import news,users
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from utils.exception_handlers import register_exception_handlers
 
 app = FastAPI()
 
+# 注册异常处理器
+register_exception_handlers(app)
 
 # 实际企业级生产环境一般配置nginx解决跨域
 origins =[
