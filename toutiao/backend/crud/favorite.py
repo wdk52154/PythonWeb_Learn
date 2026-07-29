@@ -17,3 +17,22 @@ async def is_news_favorite(
     result = await db.execute(query)
     # 是否有收藏记录
     return result.scalar_one_or_none() is not None
+
+
+# 添加收藏
+async def add_news_favorite(
+        db: AsyncSession,  # 数据库会话（由路由层 Depends(get_db) 注入）
+        user_id: int,      # 用户id
+        news_id: int       # 新闻id
+):
+    # 用模型类创建一个 ORM 对象（此时只存在于内存，还没有进数据库）
+    favorite = Favorite(user_id=user_id, news_id=news_id)
+    # 把对象加入会话（标记为"待插入"状态，还没有真正执行 SQL）
+    db.add(favorite)
+    # 提交事务：把会话里待插入的数据写入数据库（执行 INSERT）
+    await db.commit()
+    # 刷新对象：从数据库读回最新数据（拿到自增 id、created_at 默认值）
+    await db.refresh(favorite)
+
+    # 返回完整对象给路由层（此时 id 等字段都有值了）
+    return favorite
