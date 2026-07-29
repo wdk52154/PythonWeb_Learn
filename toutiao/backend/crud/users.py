@@ -1,12 +1,13 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.users import User
-from schemas.users import UserRequest
+from schemas.users import UserRequest, UserUpdateRequest
 from utils import security
 import uuid
 from datetime import datetime, timedelta
 from models.users import UserToken
+from fastapi import HTTPException
 
 
 # 根据用户名查询数据库
@@ -72,3 +73,30 @@ async def get_user_by_token(db: AsyncSession, token: str):
     query = select(User).where(User.id == db_token.user_id)
     result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+# 更新用户信息: update更新 -> 检查是否命中 -> 获取更新后的用户返回
+async def update_user(db: AsyncSession, username: str, user_data: UserUpdateRequest):
+    # update(User).where(User.username == username).values(字段=值,字段=值)
+    # user_data 是一个Pydantci类型,得到字典 -> **解包
+    # 没有设置值的不更新
+    query = (
+        update(User)
+        .where(User.username == username)
+        .values(
+            **user_data.model_dump(
+                exclude_unset=True,
+                exclude_none=True,
+            )
+        )
+    )
+    result = await db.execute(query)
+    await db.commit()
+
+    # 检查更新
+    if result.rowcount == 0: 
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 获取一下更新后的用户
+    updated_user =await get_user_by_username(db,username)
+    return update_user

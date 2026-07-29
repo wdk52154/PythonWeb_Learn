@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.users import UserRequest
 
 from utils.response import success_response
-from schemas.users import UserAuthResponse, UserInfoResponse
+from schemas.users import UserAuthResponse, UserInfoResponse, UserUpdateRequest
 from config.db_config import get_db
 from crud import users
 from starlette import status
@@ -64,4 +64,21 @@ async def login(user_data: UserRequest, db: AsyncSession = Depends(get_db)):
 # 查Token查用户 -> 封装crud -> 功能整合成一个工具函数 ->路由导入使用：依赖注入
 @router.get("/info")
 async def get_user_info(user: User = Depends(get_current_user)):
-    return success_response(message="获取用户信息成功",data=UserInfoResponse.model_validate(user))
+    return success_response(
+        message="获取用户信息成功", data=UserInfoResponse.model_validate(user)
+    )
+
+
+# 修改用户信息：验证Token -> 更新（用户输入数据 put提交 -> 请求体参数 -> 定义Pydantic 模型类）-> 响应结果
+# 参数：用户输入的 + 验证Token的
+@router.put("/update")
+async def update_user_info(
+    user_data: UserUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await users.update_user(db, user.username, user_data)
+    return success_response(
+        message="更新用户信息成功", data=UserInfoResponse.model_validate(user)
+    )
+ 
