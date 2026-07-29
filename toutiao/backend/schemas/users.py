@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
+
 # 用户请求
 class UserRequest(BaseModel):
     username: str
@@ -12,7 +13,6 @@ class UserInfoBase(BaseModel):
     avatar: Optional[str] = Field(None, max_length=255, description="头像URL")
     gender: Optional[str] = Field(None, max_length=10, description="性别")
     bio: Optional[str] = Field(None, max_length=500, description="个人简介")
-
 
 class UserInfoResponse(UserInfoBase):
     id: int
@@ -43,7 +43,11 @@ class UserUpdateRequest(BaseModel):
     bio: str = None
     phone: str = None
 
+
+
+
+
 # 修改密码的模型类
 class UserChangePasswordRequest(BaseModel):
     old_password: str = Field(..., alias="oldPassword", description="旧密码")
-    new_password: str = Field(..., min_length=6, alias="newPassword", description="新密码")
+    new_password: str = Field(..., min_length=6, alias="newPassword", description="新密码") 

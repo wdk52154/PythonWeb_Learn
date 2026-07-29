@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from schemas.users import UserRequest
+from schemas.users import UserRequest, UserChangePasswordRequest
 
 from utils.response import success_response
 from schemas.users import UserAuthResponse, UserInfoResponse, UserUpdateRequest
@@ -81,4 +81,16 @@ async def update_user_info(
     return success_response(
         message="更新用户信息成功", data=UserInfoResponse.model_validate(user)
     )
- 
+
+
+# 修改用户密码
+@router.put("/password")
+async def update_password(
+    password_data: UserChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    res_change_pwd= await users.change_password(db,user,password_data.old_password,password_data.new_password)
+    if not res_change_pwd:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="修改密码失败,请稍后再试")
+    return success_response(message="修改密码成功")
