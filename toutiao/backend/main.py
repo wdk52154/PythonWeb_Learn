@@ -1,4 +1,4 @@
-from routes import news,users,favorite
+from routes import news,users,favorite,history
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from utils.exception_handlers import register_exception_handlers
@@ -34,3 +34,4 @@ async def root():
 app.include_router(news.router)
 app.include_router(users.router)
 app.include_router(favorite.router)
+app.include_router(history.router)
