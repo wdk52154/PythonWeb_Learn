@@ -12,3 +12,5 @@ redis_client = redis.Redis(
     db=REDIS_DB,  # Redis 数据库编号，0~15
     decode_responses=True  # 是否将字节数据解码为字符串
 )
+
+
