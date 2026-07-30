@@ -1,209 +1,237 @@
-# News Headline Backend
+# Toutiao Backend
 
-新闻资讯应用后端服务，基于 FastAPI 框架开发，提供新闻浏览、用户认证、收藏管理和浏览历史等功能。采用前后端分离架构，前端（Vue/React）通过 RESTful API 与本服务交互。
+新闻资讯应用后端服务，基于 FastAPI 开发，提供新闻浏览、用户认证、收藏管理和浏览历史等接口。项目使用 PostgreSQL 保存业务数据，使用 Redis 缓存新闻分类、新闻列表、新闻详情和相关新闻数据。
 
 ## 技术栈
 
-- **Python 3.12**
-- **FastAPI** — 异步 Web 框架
-- **SQLAlchemy 2.0** — 异步 ORM
-- **PostgreSQL** — 关系型数据库（通过 asyncpg 异步驱动连接）
-- **Redis** — 缓存中间件（通过 redis.asyncio 异步客户端连接）
-- **Passlib + bcrypt** — 密码加密
-- **Pydantic v2** — 请求数据校验与响应序列化
-- **Uvicorn** — ASGI 服务器
+- Python 3.12+
+- FastAPI
+- Uvicorn
+- SQLAlchemy 2.0 async ORM
+- asyncpg
+- PostgreSQL
+- redis.asyncio
+- Pydantic v2
+- Passlib + bcrypt
 
-## 项目结构
+## 目录结构
 
-```
-news-headline-backend/
-├── main.py                  # 应用入口，创建 FastAPI 实例、注册路由和中间件
-├── requirements.txt         # 项目依赖
-│
-├── config/                  # 配置层
-│   ├── db_confing.py        # 数据库连接配置（异步引擎、会话工厂、依赖注入）
-│   └── cache_conf.py        # Redis 连接配置及通用缓存读写方法
-│
-├── models/                  # ORM 模型层（对应数据库表结构）
-│   ├── news.py              # News 新闻表 / Category 分类表
-│   ├── users.py             # User 用户表 / UserToken 令牌表
-│   ├── favorite.py          # Favorite 收藏表
-│   └── history.py           # History 浏览历史表
-│
-├── schemas/                 # Pydantic 模型层（请求/响应数据校验）
-│   ├── base.py              # 通用基础模型 NewsItemBase
-│   ├── users.py             # 用户相关：注册、登录、更新信息、修改密码
-│   ├── favorite.py          # 收藏相关：添加、列表、状态检查
-│   └── history.py           # 历史记录：添加、列表
-│
-├── routers/                 # 路由层（API 接口定义）
-│   ├── news.py              # /api/news — 新闻分类、列表、详情、相关推荐
-│   ├── users.py             # /api/user — 注册、登录、用户信息、修改密码
-│   ├── favorite.py          # /api/favorite — 收藏状态、添加、取消、列表、清空
-│   └── history.py           # /api/history — 添加、列表、删除、清空
-│
-├── crud/                    # 数据操作层（数据库 CRUD 封装）
-│   ├── news.py              # 新闻查询、浏览量更新、相关推荐
-│   ├── users.py             # 用户注册、认证、Token 管理、信息更新
-│   ├── favorite.py          # 收藏增删查、列表联表查询
-│   └── history.py           # 历史记录增删查、清空
-│
-├── cache/                   # 缓存层（Redis 缓存策略）
-│   └── news_cache.py        # 新闻分类、列表、详情、相关推荐的缓存读写
-│
-├── common/                  # 公共模块
-│   ├── result.py            # 统一响应结构 Result
-│   └── page_result.py       # 分页响应结构 PageResult
-│
-├── utils/                   # 工具模块
-│   ├── auth.py              # Token 认证依赖注入（get_current_user）
-│   ├── security.py          # 密码加密与验证（bcrypt）
-│   ├── response.py          # 成功响应封装 success_response
-│   ├── exception.py         # 全局异常处理器（HTTP、数据库、兜底）
-│   └── exception_handlers.py # 异常处理器注册
-│
+```text
+backend/
+├── main.py                    # FastAPI 应用入口，注册中间件和路由
+├── requirements.txt           # Python 依赖
+├── test_main.http             # 简单 HTTP 调试请求
+├── config/
+│   ├── db_config.py           # PostgreSQL 异步连接、Session、依赖注入
+│   └── cache_config.py        # Redis 连接配置
 ├── db/
-│   └── database.sql         # 数据库建表 SQL 脚本（含测试数据）
-│
-└── .venv/                   # 虚拟环境（不提交到 Git）
+│   └── database.sql           # PostgreSQL 建表脚本和种子数据
+├── models/
+│   ├── news.py                # news / news_category / related_news
+│   ├── users.py               # user / user_token
+│   ├── favorite.py            # favorite
+│   └── history.py             # history
+├── schemas/
+│   ├── base.py                # 新闻通用响应模型
+│   ├── users.py               # 用户请求和响应模型
+│   ├── favorite.py            # 收藏请求和响应模型
+│   └── history.py             # 浏览历史请求和响应模型
+├── routes/
+│   ├── news.py                # /api/news
+│   ├── users.py               # /api/user
+│   ├── favorite.py            # /api/favorite
+│   └── history.py             # /api/history
+├── crud/
+│   ├── news.py                # 新闻查询、详情、浏览量、相关推荐
+│   ├── news_cache.py          # 新闻缓存旁路逻辑
+│   ├── users.py               # 用户注册、登录、Token、资料更新
+│   ├── favorite.py            # 收藏增删查
+│   └── history.py             # 历史记录增删查
+├── cache/
+│   └── news_cache.py          # Redis key 读写封装
+└── utils/
+    ├── auth.py                # Authorization Token 解析
+    ├── security.py            # bcrypt 密码哈希和校验
+    ├── redis_cache.py         # Redis 通用 get/setex 封装
+    ├── response.py            # success_response
+    ├── exception.py           # 全局异常处理器
+    └── exception_handlers.py  # 异常处理器注册
 ```
 
-## 环境准备
+## 本地服务依赖
 
-### 1. 安装 PostgreSQL
+当前项目配置默认连接本机服务：
 
-确保本地已安装 PostgreSQL（推荐 16 / 17），并创建数据库：
+```text
+PostgreSQL: localhost:5432
+database:   news_app
+user:       postgres
+password:   空
 
-```sql
-CREATE DATABASE news_app;
+Redis:      localhost:6379
+db:         0
+password:   空
 ```
 
-PostgreSQL 默认使用 UTF8 编码，无需像 MySQL 那样在建库和连接时指定字符集。
+对应代码位置：
 
-然后导入建表脚本和测试数据：
+- `config/db_config.py`
+- `config/cache_config.py`
+
+如果你的 PostgreSQL 设置了密码，把数据库连接改成：
+
+```python
+ASYNC_DATABASE_URL = "postgresql+asyncpg://postgres:你的密码@localhost:5432/news_app"
+```
+
+## 初始化数据库
+
+在 `backend` 目录执行：
 
 ```bash
-psql -U 你的用户名 -d news_app -f db/database.sql
+createdb -h localhost -p 5432 -U postgres news_app
+psql -h localhost -p 5432 -U postgres -d news_app -f db/database.sql
 ```
 
-> 注意：`db/database.sql` 需为 PostgreSQL 语法（自增主键用 `SERIAL` 或 `IDENTITY`，不包含 `ENGINE=InnoDB`、`utf8mb4` 等 MySQL 专有写法）。
+如果数据库已存在，`createdb` 可能提示已存在，可以忽略，然后重新导入 SQL。
 
-### 2. 安装 Redis
-
-确保本地已安装并启动 Redis 服务，默认端口 6379。
-
-Windows 用户可从 [https://github.com/tporadowski/redis/releases](https://github.com/tporadowski/redis/releases) 下载安装。
-
-### 3. 创建虚拟环境并安装依赖
+导入后可用下面命令检查数据：
 
 ```bash
-# 创建虚拟环境
+psql -h localhost -p 5432 -U postgres -d news_app -Atc "select (select count(*) from news_category), (select count(*) from news);"
+```
+
+正常情况下会看到：
+
+```text
+8|403
+```
+
+## 启动 Redis
+
+macOS Homebrew 常用命令：
+
+```bash
+brew services start redis
+redis-cli -h 127.0.0.1 -p 6379 ping
+```
+
+正常返回：
+
+```text
+PONG
+```
+
+Redis 暂时不可用时，后端新闻接口仍会尝试走数据库；`utils/redis_cache.py` 已对 Redis 读写设置短超时和异常兜底，避免缓存异常拖垮接口。
+
+## 安装依赖
+
+在 `backend` 目录执行：
+
+```bash
 python -m venv .venv
-
-# 激活虚拟环境
-# Windows PowerShell:
-.\.venv\Scripts\Activate.ps1
-# Windows CMD:
-.\.venv\Scripts\activate.bat
-# macOS / Linux:
 source .venv/bin/activate
-
-# 安装依赖
 pip install -r requirements.txt
 ```
 
-### 4. 修改配置
+Windows PowerShell 激活虚拟环境：
 
-数据库和 Redis 的连接信息需要根据你的本地环境修改：
-
-`config/db_confing.py` — 修改数据库连接地址、用户名、密码：
-
-```python
-ASYNC_DATABASE_URL = "postgresql+asyncpg://用户名:密码@localhost:5432/news_app"
+```powershell
+.\.venv\Scripts\Activate.ps1
 ```
 
-`config/cache_conf.py` — 修改 Redis 连接地址（如果 Redis 不在本机或端口不是 6379）：
+## 启动后端
 
-```python
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
-```
-
-## 运行项目
+在 `backend` 目录执行：
 
 ```bash
-# 确保虚拟环境已激活
+source .venv/bin/activate
 uvicorn main:app --reload
 ```
 
-启动成功后，控制台会显示：
+默认地址：
 
+```text
+http://127.0.0.1:8000
 ```
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process
+
+如果 `8000` 端口被占用，可以换端口：
+
+```bash
+uvicorn main:app --reload --port 8001
+```
+
+## 快速验证
+
+```bash
+curl http://127.0.0.1:8000/
+curl http://127.0.0.1:8000/api/news/categories
+curl "http://127.0.0.1:8000/api/news/list?categoryId=1&page=1&pageSize=2"
+```
+
+登录测试账号：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/user/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"123456"}'
+```
+
+登录成功后会返回 Token。需要登录的接口请求头格式：
+
+```text
+Authorization: Bearer <token>
 ```
 
 ## API 文档
 
-项目启动后，浏览器访问以下地址查看自动生成的交互式 API 文档：
+启动后访问：
 
-- **Swagger UI**：`http://127.0.0.1:8000/docs`
-- **ReDoc**：`http://127.0.0.1:8000/redoc`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
 
-在 Swagger UI 中可以直接测试每个接口，包括需要 Token 认证的接口（点击 Authorize 按钮输入 Token）。
+## 接口总览
 
-## API 接口总览
+### 新闻 `/api/news`
 
-### 新闻模块 `/api/news`
-
-| 方法 | 路径 | 说明 | 是否需要登录 |
-|------|------|------|:------:|
+| 方法 | 路径 | 说明 | 登录 |
+|------|------|------|:----:|
 | GET | `/api/news/categories` | 获取新闻分类列表 | 否 |
-| GET | `/api/news/list?categoryId=&page=&pageSize=` | 获取新闻列表（分页） | 否 |
-| GET | `/api/news/detail?id=` | 获取新闻详情（浏览量+1） | 否 |
+| GET | `/api/news/list?categoryId=&page=&pageSize=` | 获取新闻列表 | 否 |
+| GET | `/api/news/detail?id=` | 获取新闻详情，浏览量加 1 | 否 |
 
-### 用户模块 `/api/user`
+### 用户 `/api/user`
 
-| 方法 | 路径 | 说明 | 是否需要登录 |
-|------|------|------|:------:|
+| 方法 | 路径 | 说明 | 登录 |
+|------|------|------|:----:|
 | POST | `/api/user/register` | 用户注册 | 否 |
 | POST | `/api/user/login` | 用户登录 | 否 |
 | GET | `/api/user/info` | 获取当前用户信息 | 是 |
 | PUT | `/api/user/update` | 修改用户信息 | 是 |
 | PUT | `/api/user/password` | 修改密码 | 是 |
 
-### 收藏模块 `/api/favorite`
+### 收藏 `/api/favorite`
 
-| 方法 | 路径 | 说明 | 是否需要登录 |
-|------|------|------|:------:|
-| GET | `/api/favorite/check?newsId=` | 检查是否已收藏 | 是 |
+| 方法 | 路径 | 说明 | 登录 |
+|------|------|------|:----:|
+| GET | `/api/favorite/check?newsId=` | 检查收藏状态 | 是 |
 | POST | `/api/favorite/add` | 添加收藏 | 是 |
 | DELETE | `/api/favorite/remove?newsId=` | 取消收藏 | 是 |
-| GET | `/api/favorite/list?page=&pageSize=` | 获取收藏列表（分页） | 是 |
+| GET | `/api/favorite/list?page=&pageSize=` | 获取收藏列表 | 是 |
 | DELETE | `/api/favorite/clear` | 清空收藏列表 | 是 |
 
-### 浏览历史模块 `/api/history`
+### 浏览历史 `/api/history`
 
-| 方法 | 路径 | 说明 | 是否需要登录 |
-|------|------|------|:------:|
+| 方法 | 路径 | 说明 | 登录 |
+|------|------|------|:----:|
 | POST | `/api/history/add` | 添加浏览历史 | 是 |
-| GET | `/api/history/list?page=&pageSize=` | 获取历史列表（分页） | 是 |
+| GET | `/api/history/list?page=&pageSize=` | 获取历史列表 | 是 |
 | DELETE | `/api/history/delete/{news_id}` | 删除单条历史 | 是 |
-| DELETE | `/api/history/clear` | 清空全部历史 | 是 |
+| DELETE | `/api/history/clear` | 清空历史 | 是 |
 
-### 认证方式
+## 响应格式
 
-需要登录的接口在请求头中携带 Token：
-
-```
-Authorization: Bearer <token>
-```
-
-Token 在注册或登录成功后返回，有效期 7 天。
-
-## 统一响应格式
-
-所有接口返回统一的 JSON 结构：
+成功响应统一结构：
 
 ```json
 {
@@ -213,7 +241,7 @@ Token 在注册或登录成功后返回，有效期 7 天。
 }
 ```
 
-分页接口的 `data` 结构：
+分页响应的 `data` 通常包含：
 
 ```json
 {
@@ -223,37 +251,97 @@ Token 在注册或登录成功后返回，有效期 7 天。
 }
 ```
 
-## 缓存策略
+## Redis 缓存
 
-项目使用 Redis 作为缓存层，减少数据库查询压力，各类型数据的缓存过期时间不同：
+| 数据 | Key | 过期时间 |
+|------|-----|----------|
+| 新闻分类 | `news:categories` | 7200 秒 |
+| 新闻列表 | `news_list:{category_id}:{page}:{page_size}` | 1800 秒 |
+| 新闻详情 | `news:detail:{news_id}` | 300 秒 |
+| 相关新闻 | `news:related:{news_id}:{category_id}` | 1800 秒 |
 
-| 数据类型 | 缓存 Key 格式 | 过期时间 |
-|----------|--------------|---------|
-| 新闻分类 | `news:categories` | 2 小时 |
-| 新闻列表 | `news_list:{分类ID}:{页码}:{每页数量}` | 30 分钟 |
-| 新闻详情 | `news:detail:{新闻ID}` | 5 分钟 |
-| 相关推荐 | `news:related:{新闻ID}:{分类ID}` | 30 分钟 |
+缓存采用旁路策略：
 
-## 数据库表结构
+1. 先读 Redis。
+2. 命中则直接返回。
+3. 未命中则查询 PostgreSQL。
+4. 查询成功后写回 Redis。
+5. Redis 异常时返回数据库结果，不中断接口。
+
+## 数据库表
 
 | 表名 | 说明 |
 |------|------|
-| `user` | 用户信息（用户名、密码、头像、性别等） |
-| `user_token` | 用户登录令牌（UUID，7天过期） |
+| `user` | 用户信息 |
+| `user_token` | 登录 Token，默认 7 天过期 |
 | `news_category` | 新闻分类 |
-| `news` | 新闻内容（标题、正文、封面、浏览量等） |
-| `favorite` | 收藏记录（用户 + 新闻唯一约束） |
-| `history` | 浏览历史（重复浏览更新时间） |
+| `news` | 新闻内容 |
+| `related_news` | 相关新闻关系 |
+| `favorite` | 收藏记录 |
+| `history` | 浏览历史 |
+| `ai_chat` | AI 对话记录 |
 
-详细的建表语句和测试数据见 `db/database.sql`。
+`user` 是 PostgreSQL 关键字，手写 SQL 时需要加双引号：
 
-## 全局异常处理
+```sql
+select * from "user";
+```
 
-项目注册了四层异常处理器，从具体到通用逐级捕获：
+## VS Code 数据库插件连接
 
-1. `HTTPException` — 业务层主动抛出的异常
-2. `IntegrityError` — 数据库完整性约束错误（用户名重复、外键不存在等）
-3. `SQLAlchemyError` — 其他数据库操作错误
-4. `Exception` — 兜底，捕获所有未处理的异常
+PostgreSQL 插件可使用：
 
-开发模式下（`DEBUG_MODE = True`），错误响应会包含详细堆栈信息，方便调试。
+```text
+host: localhost
+port: 5432
+user: postgres
+database: news_app
+password: 空
+```
+
+Redis 插件可使用：
+
+```text
+host: 127.0.0.1
+port: 6379
+database: 0
+password: 空
+```
+
+如果插件侧边栏没有立即刷新，执行 VS Code 命令 `Developer: Reload Window`。
+
+## 常见问题
+
+### PostgreSQL 连接失败
+
+先检查服务和数据库：
+
+```bash
+psql -h localhost -p 5432 -U postgres -d news_app -c "select 1;"
+```
+
+如果提示数据库不存在，重新执行初始化数据库命令。如果提示用户或密码错误，按本机账号修改 `config/db_config.py` 的 `ASYNC_DATABASE_URL`。
+
+### Redis 连接失败
+
+先检查 Redis：
+
+```bash
+redis-cli -h 127.0.0.1 -p 6379 ping
+```
+
+如果没有返回 `PONG`，启动 Redis 服务后再试。
+
+### 端口 8000 被占用
+
+查看占用进程：
+
+```bash
+lsof -nP -iTCP:8000 -sTCP:LISTEN
+```
+
+或者直接换端口启动：
+
+```bash
+uvicorn main:app --reload --port 8001
+```
