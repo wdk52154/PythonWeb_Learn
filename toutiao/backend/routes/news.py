@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.db_config import get_db
 from crud import news
+from crud import news_cache
 
 # 创建APIRouter实例
 # prefix 路由前缀（API 接口规范文档）
@@ -22,7 +23,7 @@ async def get_categories(
     skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)
 ):
     # 先获取数据库里面新闻分类数据 -> 先定义模型类 -> 封装查询数据的方法
-    categories = await news.get_categories(db, skip, limit)
+    categories = await news_cache.get_categories(db, skip, limit)
     return {"code": 200, "message": "获取新闻分类成功", "data": categories}
 
 
