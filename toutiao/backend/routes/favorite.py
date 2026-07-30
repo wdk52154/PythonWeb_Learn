@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/favorite", tags=["favorite"])
 # 检查收藏状态
 @router.get("/check")
 async def check_favorite(
-    news_id: int = Query(default=..., alias="newsID"),
+    news_id: int = Query(default=..., alias="newsId"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

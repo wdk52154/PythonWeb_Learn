@@ -1,7 +1,7 @@
 # 新闻相关的缓存方法：新闻分类的读取和写入
 # key - value
 from typing import List, Dict, Any, Optional
-from config.cache_config import get_json_cache, set_cache
+from utils.redis_cache import get_json_cache, set_cache
 
 CATEGORIES_KEY = "news:categories"
 NEWS_LIST_PREFIX = "news_list:"

@@ -1,7 +1,9 @@
-
+import asyncio
 import json
 from typing import Any
 from config.cache_config import redis_client
+
+CACHE_TIMEOUT = 0.2
 
 
 # 设置 和 读取（字符串 和 列表或字典）"[{}]"
@@ -9,7 +11,7 @@ from config.cache_config import redis_client
 async def get_cache(key: str):
     # return await redis_client.get(key)
     try:
-        return await redis_client.get(key)
+        return await asyncio.wait_for(redis_client.get(key), timeout=CACHE_TIMEOUT)
     except Exception as e:
         print(f"获取缓存失败：{e}")
         return None
@@ -18,7 +20,7 @@ async def get_cache(key: str):
 # 读取：列表或字典
 async def get_json_cache(key: str):
     try:
-        data = await redis_client.get(key)
+        data = await asyncio.wait_for(redis_client.get(key), timeout=CACHE_TIMEOUT)
         if data:
             return json.loads(data)  # 序列化
         return None
@@ -33,7 +35,10 @@ async def set_cache(key: str, value: Any, expire: int = 3600):
         if isinstance(value, (dict, list)):
             # 转字符串再存
             value = json.dumps(value, ensure_ascii=False)  # 中文正常保存
-        await redis_client.setex(key, expire, value)
+        await asyncio.wait_for(
+            redis_client.setex(key, expire, value),
+            timeout=CACHE_TIMEOUT,
+        )
         return True
     except Exception as e:
         print(f"设置缓存失败：{e}")
